@@ -111,7 +111,7 @@ def download_and_upload(video_url, user_id=None, folder_id=None, channel_id=None
         return {"status": "error", "message": str(e)}
 
     finally:
-        if os.path.exists(loc al_file):
+        if os.path.exists(local_file):
             os.remove(local_file)
 
 # ---------- FASTAPI ----------
