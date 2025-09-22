@@ -18,6 +18,9 @@ R2_ENDPOINT_URL = "https://7e868d075fc3878ac28547b3abb90511.r2.cloudflarestorage
 SUPABASE_URL = "https://cmmsplgmbrkjylsalrjl.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtbXNwbGdtYnJranlsc2FscmpsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTM0ODMzOSwiZXhwIjoyMDY0OTI0MzM5fQ.KCF5NpkHUXTXq4xkjf3KFac55UoBQ08txzjan1ovoJM"
 
+# Hardcoded proxy for all downloads
+PROXY = "socks5://msooqeyj:q8ubrifa3mqd@64.137.96.74:6641/"
+
 # ---------- INIT CLIENTS ----------
 s3 = boto3.client(
     "s3",
@@ -37,12 +40,10 @@ def get_file_size(path: str) -> int:
     return os.path.getsize(path) if os.path.exists(path) else 0
 
 # ---------- CORE ----------
-def download_and_upload(video_url, user_id=None, folder_id=None, channel_id=None, proxy=None):
+def download_and_upload(video_url, user_id=None, folder_id=None, channel_id=None):
     try:
         # Step 1: Get title
-        ytdlp_cmd = ["yt-dlp", "--get-title", video_url]
-        if proxy:
-            ytdlp_cmd.insert(1, f"--proxy={proxy}")
+        ytdlp_cmd = ["yt-dlp", "--get-title", video_url, f"--proxy={PROXY}"]
         result = subprocess.run(ytdlp_cmd, capture_output=True, text=True, check=True)
         title = result.stdout.strip()
         safe_title = sanitize_filename(title)
@@ -50,9 +51,7 @@ def download_and_upload(video_url, user_id=None, folder_id=None, channel_id=None
         object_key = f"uploads/{safe_title}.mp4"
 
         # Step 2: Download
-        dl_cmd = ["yt-dlp", "-f", "best", "-o", local_file, video_url]
-        if proxy:
-            dl_cmd.insert(1, f"--proxy={proxy}")
+        dl_cmd = ["yt-dlp", "-f", "best", "-o", local_file, video_url, f"--proxy={PROXY}"]
         subprocess.run(dl_cmd, check=True)
 
         # Step 3: Upload multipart to R2
@@ -122,7 +121,6 @@ class VideoRequest(BaseModel):
     user_id: str
     folder_id: str = None
     channel_id: str = None
-    proxy: str = None
 
 @app.post("/download")
 def handle_download(req: VideoRequest):
@@ -130,8 +128,7 @@ def handle_download(req: VideoRequest):
         req.video_url,
         user_id=req.user_id,
         folder_id=req.folder_id,
-        channel_id=req.channel_id,
-        proxy=req.proxy
+        channel_id=req.channel_id
     )
 
 if __name__ == "__main__":
