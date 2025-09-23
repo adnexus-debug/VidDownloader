@@ -19,7 +19,7 @@ SUPABASE_URL = "https://cmmsplgmbrkjylsalrjl.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtbXNwbGdtYnJranlsc2FscmpsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTM0ODMzOSwiZXhwIjoyMDY0OTI0MzM5fQ.KCF5NpkHUXTXq4xkjf3KFac55UoBQ08txzjan1ovoJM"
 
 # Hardcoded proxy for all downloads
-PROXY = "socks5://msooqeyj:q8ubrifa3mqd@64.137.96.74:6641/"
+PROXY = "socks5://cjillzpc:gmnxgwo6ij8e@154.203.43.247:5536/"
 
 # ---------- INIT CLIENTS ----------
 s3 = boto3.client(
@@ -41,10 +41,15 @@ def get_file_size(path: str) -> int:
 
 # ---------- CORE ----------
 def download_and_upload(video_url, user_id=None, folder_id=None, channel_id=None):
+    local_file = None  # make sure it always exists
     try:
         # Step 1: Get title
         ytdlp_cmd = ["yt-dlp", "--get-title", video_url, f"--proxy={PROXY}"]
-        result = subprocess.run(ytdlp_cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(ytdlp_cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            raise Exception(f"yt-dlp title fetch failed: {result.stderr.strip()}")
+
         title = result.stdout.strip()
         safe_title = sanitize_filename(title)
         local_file = f"{safe_title}.mp4"
@@ -52,7 +57,10 @@ def download_and_upload(video_url, user_id=None, folder_id=None, channel_id=None
 
         # Step 2: Download
         dl_cmd = ["yt-dlp", "-f", "best", "-o", local_file, video_url, f"--proxy={PROXY}"]
-        subprocess.run(dl_cmd, check=True)
+        result = subprocess.run(dl_cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            raise Exception(f"yt-dlp download failed: {result.stderr.strip()}")
 
         # Step 3: Upload multipart to R2
         resp = s3.create_multipart_upload(Bucket=R2_BUCKET_NAME, Key=object_key, ContentType="video/mp4")
@@ -110,7 +118,7 @@ def download_and_upload(video_url, user_id=None, folder_id=None, channel_id=None
         return {"status": "error", "message": str(e)}
 
     finally:
-        if os.path.exists(local_file):
+        if local_file and os.path.exists(local_file):
             os.remove(local_file)
 
 # ---------- FASTAPI ----------
